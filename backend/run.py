@@ -6,9 +6,7 @@ app = create_app()
 if __name__ == "__main__":
     try:
         with app.app_context():
-            db.create_all()               # ✅ Crée les tables si elles n'existent pas
-                     # ✅ Crée le super admin s’il n’existe pas
-
+            db.create_all()           
         print("Démarrage du serveur Flask en cours...")
         app.run(debug=True, host='0.0.0.0', port=5000)
         print("Serveur démarré avec succès sur http://0.0.0.0:5000")

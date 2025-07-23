@@ -109,11 +109,8 @@
 
 <script setup>
 import { ref, reactive } from 'vue'
-import { authService } from '../services/api'
 import { useRouter } from 'vue-router'
 
-
-const emit = defineEmits(['switch-to-register'])
 const router = useRouter()
 
 const form = reactive({
@@ -164,33 +161,12 @@ const handleLogin = async () => {
   isLoading.value = true
 
   try {
-    const response = await authService.login({
-      email: form.email,
-      password: form.password
-    })
-
-    if (response && response.data && response.data.tokens) {
-      console.log('Connexion réussie:', response.data)
-
-      localStorage.setItem('accessToken', response.data.tokens.access)
-      localStorage.setItem('refreshToken', response.data.tokens.refresh)
-      localStorage.setItem('user', JSON.stringify(response.data.user))
-
-      // Redirection vers dashboard après succès
-      router.push('/dashboard')
-    } else {
-      console.warn('Réponse inattendue du serveur:', response)
-      errors.password = 'Réponse inattendue du serveur.'
-    }
+    // Simulation de connexion réussie
+    console.log('Connexion simulée avec succès !')
+    router.push('/dashboard')
   } catch (error) {
-    console.error('Erreur de connexion:', error)
-    if (error.response && error.response.status === 401) {
-      errors.password = 'Email ou mot de passe incorrect.'
-    } else if (error.response?.data?.message) {
-      errors.password = error.response.data.message
-    } else {
-      errors.password = 'Erreur réseau. Veuillez réessayer.'
-    }
+    console.error('Erreur simulée de connexion');
+    errors.password = 'Email ou mot de passe incorrect.';
   } finally {
     isLoading.value = false
   }

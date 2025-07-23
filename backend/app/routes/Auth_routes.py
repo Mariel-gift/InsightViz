@@ -3,7 +3,6 @@ from marshmallow import ValidationError
 from datetime import datetime
 from flask_jwt_extended import create_access_token, create_refresh_token
 
-from ..models.user import User
 from ..schemas.user_schema import user_register_schema, user_schema
 from .. import db
 

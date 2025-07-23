@@ -1,12 +1,11 @@
+# app/__init__.py
+
 from flask import Flask
-from flask_sqlalchemy import SQLAlchemy
-from flask_bcrypt import Bcrypt
 from app.config import Config
-from flask_cors import CORS 
-
-
-db = SQLAlchemy()
-bcrypt = Bcrypt()
+from app.extensions import db, bcrypt
+from flask_cors import CORS
+from app.models.Base_de_donne import User, Enquete, QuestionEnquete, ReponseEnquete, Campagne, Personne, Profil
+from app.routes import main
 
 def create_app(config_class=Config):
     app = Flask(__name__)
@@ -15,8 +14,6 @@ def create_app(config_class=Config):
     db.init_app(app)
     bcrypt.init_app(app)
 
-    # CORS : autorise les requêtes venant de http://localhost:5173
-    # Supporte les credentials (cookies ou Authorization header)
     CORS(app, resources={r"/*": {"origins": "http://localhost:5173"}}, supports_credentials=True)
 
     from app.routes import main

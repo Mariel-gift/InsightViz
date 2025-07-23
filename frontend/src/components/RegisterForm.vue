@@ -231,7 +231,6 @@
 
 <script setup>
 import { ref, reactive, computed } from 'vue'
-import { authService } from '../services/api';
 
 const emit = defineEmits(['switch-to-login'])
 
@@ -262,7 +261,6 @@ const passwordStrength = computed(() => {
   if (!password) return { class: '', width: '0%', text: '' }
 
   let score = 0
-
   if (password.length >= 8) score += 1
   if (/[A-Z]/.test(password)) score += 1
   if (/[a-z]/.test(password)) score += 1
@@ -320,7 +318,7 @@ const validatePassword = () => {
   } else {
     errors.password = ''
   }
-  
+
   if (form.confirmPassword) {
     validateConfirmPassword()
   }
@@ -340,51 +338,38 @@ const clearError = (field) => {
   errors[field] = ''
 }
 
-// === LA SEULE FONCTION HANDLE REGISTER CORRECTE ===
+/* ========== INSCRIPTION FAKE LOCALE (SANS API) ========== */
 const handleRegister = async () => {
-  // 1. Lancer toutes les validations
-  validateFullName();
-  validateCompany();
-  validateEmail();
-  validatePassword();
-  validateConfirmPassword();
-  
-  // 2. S'arrêter s'il y a une erreur de validation
-  if (Object.values(errors).some(error => error)) {
-    return;
-  }
+  validateFullName()
+  validateCompany()
+  validateEmail()
+  validatePassword()
+  validateConfirmPassword()
 
-  // 3. Vérifier que les conditions sont acceptées
-  if (!form.agreeToTerms) {
-    return;
-  }
+  if (Object.values(errors).some(error => error)) return
+  if (!form.agreeToTerms) return
 
-  // 4. Lancer le chargement et appeler l'API
-  isLoading.value = true;
-  
+  isLoading.value = true
+
   try {
-    // Appel au service API
-    const response = await authService.register(form);
-    console.log('Inscription réussie:', response.data.message);
-    
-    // Émettre l'événement pour basculer vers le formulaire de connexion
-    emit('switch-to-login');
+    // Simulation d’inscription réussie (pas d'appel API)
+    console.log('Inscription simulée réussie:', {
+      fullName: form.fullName,
+      email: form.email,
+      company: form.company
+    })
 
+    // On passe à la page de connexion
+    emit('switch-to-login')
   } catch (error) {
-    // Gérer les erreurs venant du backend
-    console.error('Erreur d\'inscription:', error.response ? error.response.data : 'Erreur réseau');
-    
-    if (error.response && error.response.status === 409) {
-        errors.email = 'Cette adresse email est déjà utilisée.';
-    } else {
-        errors.confirmPassword = "Une erreur est survenue lors de l'inscription.";
-    }
+    console.error('Erreur locale :', error)
+    errors.confirmPassword = 'Erreur inattendue.'
   } finally {
-    // Arrêter le chargement dans tous les cas
-    isLoading.value = false;
+    isLoading.value = false
   }
-};
+}
 </script>
+
 
 <style scoped>
 .register-form {
