@@ -46,10 +46,24 @@
                 {{ e.answered ? 'Répondu' : 'En attente' }}
               </span>
             </td>
-            <td>
-              <button class="btn-secondary" @click="viewQuestions(e.id)">Voir questions</button>
-              <button class="btn-secondary" @click="loadEnquete(e.id)">Modifier</button>
-            </td>
+            <td class="action-icons">
+  <button class="icon-btn" title="Voir questions" @click="viewQuestions(e.id)">
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  </button>
+  <button class="icon-btn" title="Modifier" @click="loadEnquete(e.id)">
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4h2m3.707 1.293l3 3a1 1 0 01.293.707V20a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1h6a1 1 0 01.707.293l4 4z" />
+    </svg>
+  </button>
+  <button class="icon-btn" title="Supprimer" @click="deleteEnquete(e.id)">
+    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+    </svg>
+  </button>
+</td>
+
           </tr>
         </tbody>
       </table>
@@ -257,6 +271,19 @@ const submitForm = async () => {
     alert("Erreur lors de la sauvegarde. Voir console.");
   }
 };
+async function deleteEnquete(id) {
+  const confirmed = confirm("Voulez-vous vraiment supprimer cette enquête ?");
+  if (!confirmed) return;
+
+  try {
+    await axios.delete(`/enquetes/${id}`);
+    alert("Enquête supprimée.");
+    await fetchEnquetes();
+  } catch (e) {
+    console.error("Erreur lors de la suppression:", e);
+    alert("Erreur lors de la suppression.");
+  }
+}
 
 
 
@@ -536,4 +563,17 @@ function formatDate(iso) {
 .search-bar:focus {
   border-color: #2575fc;
 }
+.icon-btn {
+  background: transparent;
+  border: none;
+  margin-right: 0.4rem;
+  cursor: pointer;
+  color: #333;
+  transition: color 0.2s ease;
+}
+
+.icon-btn:hover {
+  color: #e74c3c;
+}
+
 </style>

@@ -66,7 +66,11 @@
           </div>
           <div class="form-group">
             <label for="type_repondant">Type de répondant</label>
-            <input v-model="form.type_repondant" required />
+              <select v-model="form.type_repondant" required>
+                 <option value="" disabled>-- Sélectionner --</option>
+                 <option value="transporteur">Transporteur</option>
+                 <option value="expediteur">Expéditeur</option>
+              </select>
           </div>
           <div class="form-group">
             <label for="personne_id">Personne ID</label>

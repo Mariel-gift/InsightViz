@@ -309,35 +309,26 @@ def get_enquete(enq_id):
         "titre": e.titre,
         "campagne_id": e.campagne_id
     }), 200
-@main.route("/enquetes/<int:enq_id>", methods=["PUT"])
-def update_enquete(enq_id):
-    e = Enquete.query.get_or_404(enq_id)
-    data = request.get_json(force=True) or {}
+@main.route("/enquetes/<int:id>", methods=["PUT"])
+def update_enquete(id):
+    data = request.get_json()
+    enquete = Enquete.query.get_or_404(id)
 
-    titre = (data.get("titre") or "").strip()
-    campagne_id = data.get("campagne_id")
-    questions_data = data.get("questions", [])
+    if "titre" in data:
+        enquete.titre = data["titre"]
 
-    if not titre:
-        abort(400, "Le champ titre est obligatoire.")
-    if not campagne_id or not Campagne.query.get(campagne_id):
-        abort(400, "Campagne invalide.")
-    if not isinstance(questions_data, list) or not all(isinstance(q, dict) for q in questions_data):
-        abort(400, "Format questions invalide")
+    if "campagne_id" in data:
+        enquete.campagne_id = data["campagne_id"]
+    else:
+        return jsonify({"error": "champ campagne_id manquant"}), 400
 
-    e.titre = titre
-    e.campagne_id = campagne_id
-    e.questions.clear()
+    try:
+        db.session.commit()
+        return jsonify({"message": "Enquête mise à jour avec succès"})
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": str(e)}), 500
 
-    for q in questions_data:
-        ordre = q.get("ordre")
-        texte = q.get("texte", "").strip()
-        if not texte:
-            continue
-        e.questions.append(QuestionEnquete(ordre=ordre, texte=texte))
-
-    db.session.commit()
-    return jsonify({"msg": "OK"}), 200
 
 
 @main.route("/enquetes/<int:enq_id>/questions", methods=["GET"])
@@ -357,6 +348,7 @@ def get_questions(enq_id):
             "texte": q.texte
         } for q in questions
     ]), 200
+    
     
 
 @main.route("/api/backoffice/stats", methods=["GET"])
@@ -540,3 +532,15 @@ def delete_reponse_enquete(id):
     db.session.delete(reponse)
     db.session.commit()
     return jsonify({"message": "Réponse supprimée avec succès."}), 200
+
+
+
+@main.route("/enquetes/<int:enq_id>", methods=["DELETE"])
+def delete_enquete(enq_id):
+    enquete = db.session.get(Enquete, enq_id)
+    if not enquete:
+        return jsonify({"message": "Enquête introuvable."}), 404
+
+    db.session.delete(enquete)
+    db.session.commit()
+    return jsonify({"message": "Enquête supprimée."})
