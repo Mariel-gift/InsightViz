@@ -207,29 +207,57 @@ function deleteQuestion(i) {
   );
 }
 const submitForm = async () => {
+  console.log("submitForm appelé");
+  console.log("editEnqId.value =", editEnqId.value);
+  console.log("form.titre =", form.titre);
+  console.log("form.campagne_id =", form.campagne_id);
+  console.log("questions =", questions.value);
+
+  if (!form.titre.trim()) {
+    alert("Le titre est obligatoire.");
+    return;
+  }
+  if (!form.campagne_id) {
+    alert("La campagne liée est obligatoire.");
+    return;
+  }
+  if (questions.value.length === 0) {
+    alert("Veuillez ajouter au moins une question.");
+    return;
+  }
+
   const payload = {
     titre: form.titre.trim(),
     campagne_id: form.campagne_id,
-    description: questions.value.join("\n"),
+    questions: questions.value.map((q, index) => {
+      const texte = q.replace(/^Q\d+:\s*/, "");
+      return {
+        ordre: index + 1,
+        texte: texte,
+      };
+    }),
   };
 
   try {
     if (editEnqId.value) {
+      console.log("Envoi PUT pour mise à jour enquête ID:", editEnqId.value);
       await axios.put(`/enquetes/${editEnqId.value}`, payload);
       alert("Enquête mise à jour ✅");
     } else {
+      console.log("Envoi POST pour création nouvelle enquête");
       const { data } = await axios.post(`/enquetes`, payload);
       alert("Enquête créée ✅");
-
       selectedEnqueteId.value = data.id;
     }
 
     await fetchEnquetes();
-    closeFormModal(); // ✅ TSARA IO
+    closeFormModal();
   } catch (error) {
-    console.error("Erreur lors de la création de l'enquête", error);
+    console.error("Erreur lors de la création/mise à jour de l'enquête", error);
+    alert("Erreur lors de la sauvegarde. Voir console.");
   }
 };
+
 
 
 function resetForm() {

@@ -16,6 +16,7 @@
           <option value="enquete">Enquête</option>
           <option value="reponse">Réponse</option>
           <option value="campagne">Campagne</option>
+          <option value="personne">Personne</option>
         </select>
       </div>
     </aside>
@@ -55,7 +56,7 @@
 <script setup>
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
-import axios from 'axios'
+import axios from '../axios'
 import { Chart, registerables } from 'chart.js'
 Chart.register(...registerables)
 
@@ -63,7 +64,7 @@ Chart.register(...registerables)
 const router = useRouter()
 const selectedParam = ref('')
 const handleParam = () => {
-  const map = { user:'UserForm', enquete:'EqueteForm', reponse:'ReponseForm', campagne:'CampagneForm' }
+  const map = { user:'UserForm', enquete:'EqueteForm', reponse:'ReponseForm', campagne:'CampagneForm',personne:'PersonneForm' }
   if (selectedParam.value && map[selectedParam.value]) {
     router.push({ name: map[selectedParam.value] })
     selectedParam.value = ''

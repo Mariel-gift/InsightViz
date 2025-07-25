@@ -17,6 +17,7 @@
             <option value="enquete">📋 Enquête</option>
             <option value="reponse">📝 Réponse</option>
             <option value="campagne">📢 Campagne</option>
+            <option value="personne">Personne</option>
           </select>
 
           <!-- Icônes à droite du select -->
@@ -25,6 +26,7 @@
             <svg v-else-if="selected==='enquete'" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="white" viewBox="0 0 24 24"><path d="M3 4v16h18V4H3zm16 14H5V6h14v12z"/><path d="M7 8h10v2H7zm0 4h6v2H7z"/></svg>
             <svg v-else-if="selected==='reponse'" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="white" viewBox="0 0 24 24"><path d="M21 6h-2V4H5v2H3v14h18V6zM5 8h14v10H5V8z"/></svg>
             <svg v-else-if="selected==='campagne'" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="white" viewBox="0 0 24 24"><path d="M21 4v13h-4v3l-5-3h-8V4h17zm-2 2H5v9h5l4 2.5V15h5V6z"/></svg>
+            <svg v-else-if="selected==='personne'" xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="white" viewBox="0 0 24 24"><path d="M12 2a5 5 0 0 1 5 5a5 5 0 1 1 -10 0a5 5 0 0 1 5 -5zm0 12c-4.418 0 -8 2.239 -8 5v3h16v-3c0 -2.761 -3.582 -5 -8 -5z"/></svg>
           </span>
         </div>
       </div>
@@ -44,7 +46,7 @@ import UserForm from './UserForm.vue'
 import EqueteForm from './EqueteForm.vue'
 import ReponseForm from './ReponseForm.vue'
 import CampagneForm from './CampagneForm.vue'
-
+import PersonneForm from './PersonneForm.vue'
 const current = ref('dashboard')
 const selected = ref('')
 
@@ -53,7 +55,8 @@ const componentMap = {
   user: UserForm,
   enquete: EqueteForm,
   reponse: ReponseForm,
-  campagne: CampagneForm
+  campagne: CampagneForm,
+  personne: PersonneForm
 }
 
 const change = () => {
@@ -82,7 +85,7 @@ const change = () => {
   flex-direction: column;
   gap: 1.5rem;
   background: linear-gradient(135deg, #372d67 0%, #6a11cb 60%, #2575fc 100%);
-  color: #fff;
+  color: #5047a3;
   box-shadow: 2px 0 10px rgba(0, 0, 0, 0.15);
 }
 
@@ -122,7 +125,7 @@ const change = () => {
   border-radius: 6px;
   border: none;
   background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  color: #411180;
   appearance: none;
 }
 .select-wrapper .icon {

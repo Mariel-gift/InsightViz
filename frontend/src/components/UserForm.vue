@@ -29,7 +29,7 @@
       <tbody>
         <tr v-for="user in utilisateursFiltres" :key="user.id">
           <td>{{ user.id }}</td>
-          <td>{{ user.nom }}</td>
+          <td>{{ user.full_name }}</td>
           <td>{{ user.email }}</td>
           <td>{{ user.role }}</td>
           <td>{{ user.created_at }}</td>
@@ -49,7 +49,7 @@
         <form @submit.prevent="ajouterUtilisateur" class="form">
           <div class="form-group">
             <label class="form-label">Nom</label>
-            <input v-model="nouvelUtilisateur.nom" type="text" placeholder="Nom complet" class="form-input" required />
+            <input v-model="nouvelUtilisateur.full_name" type="text" placeholder="Nom complet" class="form-input" required />
           </div>
 
           <div class="form-group">
@@ -67,7 +67,7 @@
             <select v-model="nouvelUtilisateur.role" class="form-input" required>
               <option disabled value="">-- Sélectionner --</option>
               <option value="admin">Admin</option>
-              <option value="utilisateur">Utilisateur</option>
+              <option value="user">Utilisateur</option>
             </select>
           </div>
 
@@ -86,7 +86,7 @@
         <form @submit.prevent="modifierUtilisateur" class="form">
           <div class="form-group">
             <label class="form-label">Nom</label>
-            <input v-model="utilisateurAModifier.nom" type="text" class="form-input" required />
+            <input v-model="utilisateurAModifier.full_name" type="text" class="form-input" required />
           </div>
 
           <div class="form-group">
@@ -98,7 +98,7 @@
             <label class="form-label">Rôle</label>
             <select v-model="utilisateurAModifier.role" class="form-input" required>
               <option value="admin">Admin</option>
-              <option value="utilisateur">Utilisateur</option>
+              <option value="user">Utilisateur</option>
             </select>
           </div>
 
@@ -113,7 +113,7 @@
     <!-- Modal Suppression -->
     <div v-if="showModal" class="modal-overlay">
       <div class="modal-box">
-        <p>⚠️Voulez-vous de supprimer <strong>{{ utilisateurASupprimer?.nom }}</strong> ?</p>
+        <p>⚠️Voulez-vous de supprimer <strong>{{ utilisateurASupprimer?.full_name }}</strong> ?</p>
         <div class="modal-actions">
           <button @click="confirmerSuppression" class="confirm-btn">Oui</button>
           <button @click="fermerModal" class="cancel-btn">Non</button>
@@ -124,60 +124,63 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue'
-import axios from 'axios'
-const utilisateurs = ref([
+import { ref, computed, onMounted } from 'vue'
+import axios from '../axios'
 
-  
-])
-
+// État
+const utilisateurs = ref([])
 const termeRecherche = ref('')
 const showModal = ref(false)
 const showAjoutModal = ref(false)
 const showEditModal = ref(false)
+
 const utilisateurASupprimer = ref(null)
 const utilisateurAModifier = ref({})
-const nouvelUtilisateur = ref({ nom: '', email: '', mot_de_passe: '', role: '' })
+const nouvelUtilisateur = ref({ full_name: '', email: '', mot_de_passe: '', role: '' })
 
+// Chargement des utilisateurs depuis l’API
+const chargerUtilisateurs = async () => {
+  try {
+    const res = await axios.get('/api/users')
+    utilisateurs.value = res.data
+  } catch (err) {
+    console.error("Erreur de chargement :", err)
+  }
+}
+onMounted(chargerUtilisateurs)
+
+// Filtrage utilisateurs
 const utilisateursFiltres = computed(() => {
   const terme = termeRecherche.value.toLowerCase()
   return utilisateurs.value.filter(user =>
-    user.nom.toLowerCase().includes(terme) ||
+    user.full_name.toLowerCase().includes(terme) ||
     user.email.toLowerCase().includes(terme) ||
     user.role.toLowerCase().includes(terme)
   )
 })
 
-const ouvrirModal = (user) => {
-  utilisateurASupprimer.value = user
-  showModal.value = true
-}
-const fermerModal = () => {
-  utilisateurASupprimer.value = null
-  showModal.value = false
-}
-const confirmerSuppression = () => {
-  utilisateurs.value = utilisateurs.value.filter(u => u.id !== utilisateurASupprimer.value.id)
-  fermerModal()
-}
-
+// Ajout
 const ouvrirAjoutModal = () => showAjoutModal.value = true
 const fermerAjoutModal = () => {
   showAjoutModal.value = false
-  nouvelUtilisateur.value = { nom: '', email: '', mot_de_passe: '', role: '' }
+  nouvelUtilisateur.value = { full_name: '', email: '', mot_de_passe: '', role: '' }
 }
-const ajouterUtilisateur = () => {
-  const id = utilisateurs.value.length + 1
-  utilisateurs.value.push({
-    id,
-    nom: nouvelUtilisateur.value.nom,
-    email: nouvelUtilisateur.value.email,
-    role: nouvelUtilisateur.value.role,
-    created_at: new Date().toISOString().split('T')[0]
-  })
-  fermerAjoutModal()
+const ajouterUtilisateur = async () => {
+  try {
+    await axios.post('/api/users', {
+      full_name: nouvelUtilisateur.value.full_name,
+      email: nouvelUtilisateur.value.email,
+      password: nouvelUtilisateur.value.mot_de_passe,
+      role: nouvelUtilisateur.value.role,
+    })
+    fermerAjoutModal()
+    chargerUtilisateurs()
+  } catch (err) {
+    console.error("Erreur ajout utilisateur :", err)
+  }
 }
 
+// Modification
 const ouvrirModifierModal = (user) => {
   utilisateurAModifier.value = { ...user }
   showEditModal.value = true
@@ -186,13 +189,40 @@ const fermerEditModal = () => {
   utilisateurAModifier.value = {}
   showEditModal.value = false
 }
-const modifierUtilisateur = () => {
-  const index = utilisateurs.value.findIndex(u => u.id === utilisateurAModifier.value.id)
-  if (index !== -1) utilisateurs.value[index] = { ...utilisateurAModifier.value }
-  fermerEditModal()
+const modifierUtilisateur = async () => {
+  try {
+    await axios.put(`/api/users/${utilisateurAModifier.value.id}`, {
+      full_name: utilisateurAModifier.value.full_name,
+      email: utilisateurAModifier.value.email,
+      role: utilisateurAModifier.value.role
+    })
+    fermerEditModal()
+    chargerUtilisateurs()
+  } catch (err) {
+    console.error("Erreur modification :", err)
+  }
 }
 
+// Suppression
+const ouvrirModal = (user) => {
+  utilisateurASupprimer.value = user
+  showModal.value = true
+}
+const fermerModal = () => {
+  utilisateurASupprimer.value = null
+  showModal.value = false
+}
+const confirmerSuppression = async () => {
+  try {
+    await axios.delete(`/api/users/${utilisateurASupprimer.value.id}`)
+    fermerModal()
+    chargerUtilisateurs()
+  } catch (err) {
+    console.error("Erreur suppression :", err)
+  }
+}
 </script>
+
 
 <style scoped>
 .user-form-container {

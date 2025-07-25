@@ -3,7 +3,7 @@ from flask import Blueprint, request, jsonify, abort
 from sqlalchemy import func
 from sqlalchemy.exc import IntegrityError
 from app import db
-from app.models.Base_de_donne import User, Enquete, QuestionEnquete, ReponseEnquete, Campagne, RoleEnum
+from app.models.Base_de_donne import User, Enquete, QuestionEnquete, ReponseEnquete, Campagne, RoleEnum, Personne, TypePersonneEnum
 import time
 
 main = Blueprint("main", __name__)
@@ -87,67 +87,76 @@ def login():
 
 
 # ----------- CRUD utilisateurs simplifiés avec pagination ----------------
-@main.route("/utilisateurs", methods=["GET", "OPTIONS"])
-def get_utilisateurs():
-    if request.method == "OPTIONS":
-        return "", 200
+@main.route('/api/users', methods=['GET'])
+def get_users():
+    users = User.query.order_by(User.created_at.desc()).all()
+    return jsonify([
+        {
+            "id": u.id,
+            "full_name": u.full_name,
+            "email": u.email,
+            "role": u.role,
+            "created_at": u.created_at.strftime("%Y-%m-%d")
+        }
+        for u in users
+    ]), 200
 
-    # Pagination (exemple simple)
-    try:
-        page = int(request.args.get("page", 1))
-        per_page = int(request.args.get("limit", 10))
-    except ValueError:
-        page = 1
-        per_page = 10
-
-    query = User.query.order_by(User.created_at.desc())
-    users_paginated = query.limit(per_page).offset((page - 1) * per_page).all()
-
-    total = query.count()
-
-    return jsonify({
-        "total": total,
-        "page": page,
-        "per_page": per_page,
-        "utilisateurs": [
-            {
-                "id": u.id,
-                "nom": u.full_name,
-                "email": u.email,
-                "date_inscription": u.created_at.strftime("%Y-%m-%d") if u.created_at else "",
-            }
-            for u in users_paginated
-        ]
-    }), 200
-
-
-@main.route("/utilisateurs", methods=["POST"])
-def create_utilisateur():
+# ➕ POST - Créer un nouvel utilisateur
+@main.route('/api/users', methods=['POST'])
+def create_user():
     data = request.get_json()
-    nom         = data.get("nom")
-    email       = data.get("email")
-    motdepasse  = data.get("motdepasse")
-    role        = data.get("role", "user")
 
-    if not all([nom, email, motdepasse, role]):
-        return jsonify({"error": "Tous les champs sont requis"}), 400
+    if not all(k in data for k in ("full_name", "email", "password", "role")):
+        return jsonify({"error": "Champs manquants"}), 400
 
-    if User.query.filter_by(email=email).first():
+    if User.query.filter_by(email=data["email"]).first():
         return jsonify({"error": "Email déjà utilisé"}), 409
 
-    new_user = User(
-        full_name=nom,
-        email=email,
-        role=RoleEnum(role) if role in RoleEnum._value2member_map_ else RoleEnum.USER,
-        created_at=datetime.utcnow(),
-    )
-    new_user.password = motdepasse
-    db.session.add(new_user)
-    db.session.commit()
+    try:
+        user = User(
+            full_name=data["full_name"],
+            email=data["email"],
+            role=data["role"]
+        )
+        user.password = data["password"]  # setter hash automatiquement
+        db.session.add(user)
+        db.session.commit()
 
-    return jsonify({"message": "Utilisateur créé avec succès"}), 201
+        return jsonify({"message": "Utilisateur créé", "id": user.id}), 201
 
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "Erreur lors de la création"}), 500
 
+# ✏️ PUT - Modifier un utilisateur
+@main.route('/api/users/<int:user_id>', methods=['PUT'])
+def update_user(user_id):
+    user = User.query.get_or_404(user_id)
+    data = request.get_json()
+
+    user.full_name = data.get("full_name", user.full_name)
+    user.email = data.get("email", user.email)
+    user.role = data.get("role", user.role)
+
+    try:
+        db.session.commit()
+        return jsonify({"message": "Utilisateur mis à jour"}), 200
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({"error": "Erreur lors de la mise à jour"}), 500
+
+# ❌ DELETE - Supprimer un utilisateur
+@main.route('/api/users/<int:user_id>', methods=['DELETE'])
+def delete_user(user_id):
+    user = User.query.get_or_404(user_id)
+
+    try:
+        db.session.delete(user)
+        db.session.commit()
+        return jsonify({"message": "Utilisateur supprimé"}), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({"error": "Erreur lors de la suppression"}), 500
 # =========================================================
 # 2. CAMPAGNES (liste pour le <select>)
 # =========================================================
@@ -260,16 +269,17 @@ def list_enquetes():
 
 @main.route("/enquetes", methods=["POST"])
 def create_enquete():
-    data  = request.get_json(force=True) or {}
+    data = request.get_json(force=True) or {}
     titre = (data.get("titre") or "").strip()
     campagne_id = data.get("campagne_id")
+    questions_data = data.get("questions", [])
 
     if not titre:
         abort(400, "Le champ 'titre' est obligatoire")
-
-    
     if not campagne_id or not Campagne.query.get(campagne_id):
         abort(400, "Campagne invalide ou manquante")
+    if not isinstance(questions_data, list) or not all(isinstance(q, dict) for q in questions_data):
+        abort(400, "Format questions invalide")
 
     enquete = Enquete(
         titre=titre,
@@ -277,19 +287,18 @@ def create_enquete():
         date_creation=datetime.utcnow()
     )
     db.session.add(enquete)
-    db.session.flush()  
-    lignes = [
-        l.strip() for l in (data.get("description") or "").splitlines() if l.strip()
-    ]
-    for ordre, texte in enumerate(lignes, start=1):
-        if ":" in texte and texte.split(":", 1)[0].upper().startswith("Q"):
-            texte = texte.split(":", 1)[1].strip()
-        db.session.add(
-            QuestionEnquete(texte=texte, ordre=ordre, enquete_id=enquete.id)
-        )
+    db.session.flush()  # pour avoir enquete.id
+
+    for q in questions_data:
+        ordre = q.get("ordre")
+        texte = q.get("texte", "").strip()
+        if not texte:
+            continue
+        db.session.add(QuestionEnquete(ordre=ordre, texte=texte, enquete_id=enquete.id))
 
     db.session.commit()
     return jsonify({"id": enquete.id}), 201
+
 
 
 @main.route("/enquetes/<int:enq_id>", methods=["GET"])
@@ -307,22 +316,227 @@ def update_enquete(enq_id):
 
     titre = (data.get("titre") or "").strip()
     campagne_id = data.get("campagne_id")
+    questions_data = data.get("questions", [])
 
     if not titre:
         abort(400, "Le champ titre est obligatoire.")
     if not campagne_id or not Campagne.query.get(campagne_id):
         abort(400, "Campagne invalide.")
+    if not isinstance(questions_data, list) or not all(isinstance(q, dict) for q in questions_data):
+        abort(400, "Format questions invalide")
+
     e.titre = titre
     e.campagne_id = campagne_id
     e.questions.clear()
-    for ordre, texte in enumerate(
-        (l.strip() for l in data.get("description", "").splitlines() if l.strip()),
-        start=1
-    ):
-        if ":" in texte and texte.upper().startswith("Q"):
-            texte = texte.split(":", 1)[1].strip()
+
+    for q in questions_data:
+        ordre = q.get("ordre")
+        texte = q.get("texte", "").strip()
+        if not texte:
+            continue
         e.questions.append(QuestionEnquete(ordre=ordre, texte=texte))
 
     db.session.commit()
     return jsonify({"msg": "OK"}), 200
 
+
+@main.route("/enquetes/<int:enq_id>/questions", methods=["GET"])
+def get_questions(enq_id):
+    enquete = Enquete.query.get_or_404(enq_id)
+    questions = (
+        QuestionEnquete.query
+        .filter_by(enquete_id=enq_id)
+        .order_by(QuestionEnquete.ordre)
+        .all()
+    )
+
+    return jsonify([
+        {
+            "id": q.id,
+            "ordre": q.ordre,
+            "texte": q.texte
+        } for q in questions
+    ]), 200
+    
+
+@main.route("/api/backoffice/stats", methods=["GET"])
+def get_backoffice_stats():
+    current_year = datetime.now().year
+
+    # Nombre total
+    total_enquetes = Enquete.query.count()
+    total_reponses = ReponseEnquete.query.count()
+    total_campagnes = Campagne.query.count()
+    total_utilisateurs = User.query.count()
+
+    # Enquêtes par mois (nombre d'enquêtes créées par mois cette année)
+    monthly_counts = [0] * 12
+    results = (
+        db.session.query(
+            func.extract('month', Enquete.date_creation).label('mois'),
+            func.count(Enquete.id)
+        )
+        .filter(func.extract('year', Enquete.date_creation) == current_year)
+        .group_by('mois')
+        .all()
+    )
+
+    for mois, count in results:
+        monthly_counts[int(mois) - 1] = count
+
+    return jsonify({
+        "enquetes": total_enquetes,
+        "reponses": total_reponses,
+        "campagnes": total_campagnes,
+        "utilisateurs": total_utilisateurs,
+        "months": ["Jan", "Fév", "Mar", "Avr", "Mai", "Juin", "Juil", "Aoû", "Sep", "Oct", "Nov", "Déc"],
+        "enquetesMonthly": monthly_counts
+    }), 200
+
+
+
+
+# =========================================================
+# 4. PERSONNES (CRUD)
+# =========================================================
+
+# 🔍 Lister les personnes (GET)
+@main.route("/personnes", methods=["GET"])
+def list_personnes():
+    personnes = Personne.query.order_by(Personne.created_at.desc()).all()
+    return jsonify([
+        {
+            "id": p.id,
+            "nom": p.nom,
+            "region": p.region,
+            "email_contact": p.email_contact,
+            "telephone": p.telephone,
+            "type": p.type.value if p.type else None,
+            "taille_entreprise": p.taille_entreprise,
+            "secteur_activite": p.secteur_activite,
+            "created_at": p.created_at.isoformat()
+        }
+        for p in personnes
+    ]), 200
+
+
+# ➕ Créer une personne (POST)
+@main.route("/personnes", methods=["POST"])
+def create_personne():
+    data = request.get_json()
+    required = ["nom", "type"]
+
+    if not all(data.get(f) for f in required):
+        return jsonify({"error": "Champs requis manquants"}), 400
+
+    try:
+        type_enum = TypePersonneEnum(data.get("type"))
+    except ValueError:
+        return jsonify({"error": "Type invalide"}), 400
+
+    personne = Personne(
+        nom=data.get("nom"),
+        region=data.get("region"),
+        email_contact=data.get("email_contact"),
+        telephone=data.get("telephone"),
+        type=type_enum,
+        taille_entreprise=data.get("taille_entreprise") if type_enum == TypePersonneEnum.TRANSPORTEUR else None,
+        secteur_activite=data.get("secteur_activite") if type_enum == TypePersonneEnum.EXPEDITEUR else None
+    )
+
+    db.session.add(personne)
+    db.session.commit()
+    return jsonify({"message": "Personne créée avec succès"}), 201
+
+
+# 📝 Modifier une personne (PUT)
+@main.route("/personnes/<int:id>", methods=["PUT"])
+def update_personne(id):
+    personne = Personne.query.get_or_404(id)
+    data = request.get_json()
+
+    if "type" in data:
+        try:
+            personne.type = TypePersonneEnum(data.get("type"))
+        except ValueError:
+            return jsonify({"error": "Type invalide"}), 400
+
+    personne.nom = data.get("nom", personne.nom)
+    personne.region = data.get("region", personne.region)
+    personne.email_contact = data.get("email_contact", personne.email_contact)
+    personne.telephone = data.get("telephone", personne.telephone)
+
+    if personne.type == TypePersonneEnum.TRANSPORTEUR:
+        personne.taille_entreprise = data.get("taille_entreprise")
+        personne.secteur_activite = None
+    elif personne.type == TypePersonneEnum.EXPEDITEUR:
+        personne.secteur_activite = data.get("secteur_activite")
+        personne.taille_entreprise = None
+
+    db.session.commit()
+    return jsonify({"message": "Personne mise à jour"}), 200
+
+
+# ❌ Supprimer une personne (DELETE)
+@main.route("/personnes/<int:id>", methods=["DELETE"])
+def delete_personne(id):
+    personne = Personne.query.get(id)
+    if not personne:
+        return jsonify({"error": "Personne non trouvée"}), 404
+
+    db.session.delete(personne)
+    db.session.commit()
+    return jsonify({"message": "Personne supprimée avec succès"}), 200
+
+
+# === GET: récupérer toutes les réponses ===
+@main.route('/reponses-enquetes', methods=['GET'])
+def get_reponses_enquetes():
+    reponses = ReponseEnquete.query.all()
+    result = []
+    for r in reponses:
+        result.append({
+            'id': r.id,
+            'enquete_id': r.enquete_id,
+            'type_repondant': r.type_repondant,
+            'personne_id': r.personne_id,
+            'donnees_reponse': r.donnees_reponse,
+            'date_reponse': r.date_reponse.isoformat() if r.date_reponse else None
+        })
+    return jsonify(result), 200
+
+# === POST: créer une réponse ===
+@main.route('/reponses-enquetes', methods=['POST'])
+def create_reponse_enquete():
+    data = request.get_json()
+    nouvelle_reponse = ReponseEnquete(
+        enquete_id=data.get('enquete_id'),
+        type_repondant=data.get('type_repondant'),
+        personne_id=data.get('personne_id'),
+        donnees_reponse=data.get('donnees_reponse')
+    )
+    db.session.add(nouvelle_reponse)
+    db.session.commit()
+    return jsonify({"message": "Réponse enregistrée avec succès."}), 201
+
+# === PUT: modifier une réponse existante ===
+@main.route('/reponses-enquetes/<int:id>', methods=['PUT'])
+def update_reponse_enquete(id):
+    data = request.get_json()
+    reponse = ReponseEnquete.query.get_or_404(id)
+
+    reponse.enquete_id = data.get('enquete_id', reponse.enquete_id)
+    reponse.type_repondant = data.get('type_repondant', reponse.type_repondant)
+    reponse.personne_id = data.get('personne_id', reponse.personne_id)
+    reponse.donnees_reponse = data.get('donnees_reponse', reponse.donnees_reponse)
+
+    db.session.commit()
+    return jsonify({"message": "Réponse mise à jour avec succès."}), 200
+
+# === DELETE: supprimer une réponse ===
+@main.route('/reponses-enquetes/<int:id>', methods=['DELETE'])
+def delete_reponse_enquete(id):
+    reponse = ReponseEnquete.query.get_or_404(id)
+    db.session.delete(reponse)
+    db.session.commit()
+    return jsonify({"message": "Réponse supprimée avec succès."}), 200

@@ -1,189 +1,274 @@
 <template>
-  <div class="form-container">
-    <h2>Soumettre une réponse</h2>
+  <div class="page-wrapper">
+    <!-- ========== ENTÊTE ========== -->
+    <div class="top-actions">
+      <h2>Réponses aux enquêtes</h2>
+      <button @click="openForm" class="btn-primary">Répondre à une enquête</button>
+    </div>
 
-    <form @submit.prevent="submitForm">
-      <!-- Enquête concernée -->
-      <div class="form-group">
-        <label for="enquete">Enquête :</label>
-        <select id="enquete" v-model="form.enquete_id" required>
-          <option value="" disabled>— Sélectionner —</option>
-          <option v-for="e in enquetes" :key="e.id" :value="e.id">
-            {{ e.titre }}
-          </option>
-        </select>
+    <!-- ========== BARRE DE RECHERCHE ========== -->
+    <div class="search-container">
+      <input v-model="search" type="text" placeholder="Rechercher..." class="search-bar" />
+      <svg xmlns="http://www.w3.org/2000/svg" class="search-icon" width="20" height="20" viewBox="0 0 24 24">
+        <path fill="currentColor" d="M21 20.3l-5.7-5.7a7 7 0 1 0-1.4 1.4L20.3 21zM4 10a6 6 0 1 1 12 0a6 6 0 0 1-12 0z" />
+      </svg>
+    </div>
+
+    <!-- ========== TABLEAU DES RÉPONSES ========== -->
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>ID</th>
+          <th>Enquête</th>
+          <th>Type</th>
+          <th>Personne</th>
+          <th>Données</th>
+          <th>Date</th>
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr v-for="reponse in filteredReponses" :key="reponse.id">
+          <td>{{ reponse.id }}</td>
+          <td>{{ reponse.enquete_id }}</td>
+          <td>{{ reponse.type_repondant }}</td>
+          <td>{{ reponse.personne_id }}</td>
+          <td>{{ reponse.donnees_reponse }}</td>
+          <td>{{ reponse.date_creation?.slice(0, 10) }}</td>
+          <td class="actions">
+            <!-- MODIFIER -->
+            <button @click="editReponse(reponse)">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M5 19h14v2H5zM6 17h2l9-9-2-2-9 9v2z" />
+              </svg>
+            </button>
+            <!-- SUPPRIMER -->
+            <button @click="deleteReponse(reponse.id)">
+              <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24">
+                <path fill="currentColor" d="M6 7h12v2H6zM10 11h4v8h-4z" />
+              </svg>
+            </button>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+
+    <!-- ========== MODALE FORMULAIRE ========== -->
+    <div v-if="showModal" class="modal">
+      <div class="modal-content">
+        <h3>{{ editing ? "Modifier" : "Répondre à" }} une enquête</h3>
+        <form @submit.prevent="submitForm">
+          <div class="form-group">
+            <label for="enquete_id">Enquête</label>
+            <select v-model="form.enquete_id" required>
+              <option v-for="e in enquetes" :key="e.id" :value="e.id">{{ e.titre }}</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label for="type_repondant">Type de répondant</label>
+            <input v-model="form.type_repondant" required />
+          </div>
+          <div class="form-group">
+            <label for="personne_id">Personne ID</label>
+            <input v-model="form.personne_id" type="number" required />
+          </div>
+          <div class="form-group">
+            <label for="donnees_reponse">Données (JSON)</label>
+            <textarea v-model="form.donnees_reponse" rows="3" required></textarea>
+          </div>
+
+          <div class="modal-actions">
+            <button type="submit" class="btn-primary">{{ editing ? "Mettre à jour" : "Envoyer" }}</button>
+            <button @click="closeForm" type="button" class="btn-cancel">Annuler</button>
+          </div>
+        </form>
       </div>
-
-      <!-- Type de répondant -->
-      <div class="form-group">
-        <label for="type">Type de répondant :</label>
-        <select id="type" v-model="form.type_repondant" required>
-          <option value="" disabled>— Sélectionner —</option>
-          <option value="transporteur">Transporteur</option>
-          <option value="expediteur">Expéditeur</option>
-        </select>
-      </div>
-
-      <!-- ID répondant -->
-      <div class="form-group">
-        <label for="id_repondant">ID du répondant :</label>
-        <input
-          id="id_repondant"
-          v-model.number="form.id_repondant"
-          type="number"
-          min="1"
-          required
-        />
-      </div>
-
-      <!-- Données de réponse (JSON) -->
-      <div class="form-group">
-        <label for="donnees">Données de réponse (JSON) :</label>
-        <textarea
-          id="donnees"
-          v-model="form.donnees_reponse"
-          rows="6"
-          placeholder='{"question_1": "Oui", "question_2": 4}'
-          required
-        ></textarea>
-      </div>
-
-      <!-- Message d’erreur JSON (si besoin) -->
-      <p v-if="jsonError" class="json-error">
-        Format JSON invalide : {{ jsonError }}
-      </p>
-
-      <!-- Bouton envoyer -->
-      <button class="btn-primary" type="submit">Enregistrer</button>
-    </form>
+    </div>
   </div>
 </template>
 
-<script setup>
-import { reactive, ref, onMounted, watch } from 'vue';
-import axios from 'axios' ; // instance axios préconfigurée
+<script>
+import axios from "@/axios";
 
-/* ===== Données ===== */
-const enquetes = ref([]);
-const jsonError = ref('');
-const form = reactive({
-  enquete_id: '',
-  type_repondant: '',
-  id_repondant: '',
-  donnees_reponse: ''
-});
-
-/* ===== Validation JSON ===== */
-watch(() => form.donnees_reponse, (val) => {
-  try {
-    JSON.parse(val);
-    jsonError.value = '';
-  } catch (e) {
-    jsonError.value = e.message;
-  }
-});
-
-/* ===== Soumission ===== */
-const submitForm = async () => {
-  if (jsonError.value) {
-    alert('Veuillez corriger le JSON avant de soumettre.');
-    return;
-  }
-
-  try {
-    await axios.post('/reponses-enquetes', {
-      ...form,
-      donnees_reponse: JSON.parse(form.donnees_reponse) // envoyer comme objet
-    });
-    alert('Réponse enregistrée avec succès !');
-
-    // reset
-    form.enquete_id = '';
-    form.type_repondant = '';
-    form.id_repondant = '';
-    form.donnees_reponse = '';
-  } catch (error) {
-    console.error(error);
-    alert("Une erreur s'est produite lors de l'enregistrement.");
-  }
+export default {
+  data() {
+    return {
+      reponses: [],
+      enquetes: [],
+      search: "",
+      showModal: false,
+      editing: false,
+      form: {
+        id: null,
+        enquete_id: "",
+        type_repondant: "",
+        personne_id: "",
+        donnees_reponse: "",
+      },
+    };
+  },
+  computed: {
+    filteredReponses() {
+      return this.reponses.filter((r) =>
+        JSON.stringify(r).toLowerCase().includes(this.search.toLowerCase())
+      );
+    },
+  },
+  methods: {
+    async fetchReponses() {
+      const res = await axios.get("/reponses-enquetes");
+      this.reponses = res.data;
+    },
+    async fetchEnquetes() {
+      const res = await axios.get("/enquetes");
+      this.enquetes = res.data;
+    },
+    openForm() {
+      this.resetForm();
+      this.showModal = true;
+      this.editing = false;
+    },
+    closeForm() {
+      this.showModal = false;
+    },
+    editReponse(reponse) {
+      this.form = { ...reponse };
+      this.showModal = true;
+      this.editing = true;
+    },
+    async deleteReponse(id) {
+      if (confirm("Confirmer la suppression ?")) {
+        await axios.delete(`/reponses-enquetes/${id}`);
+        this.fetchReponses();
+      }
+    },
+    async submitForm() {
+      const payload = {
+        enquete_id: this.form.enquete_id,
+        type_repondant: this.form.type_repondant,
+        personne_id: this.form.personne_id,
+        donnees_reponse: this.form.donnees_reponse,
+      };
+      if (this.editing) {
+        await axios.put(`/reponses-enquetes/${this.form.id}`, payload);
+      } else {
+        await axios.post("/reponses-enquetes", payload);
+      }
+      this.closeForm();
+      this.fetchReponses();
+    },
+    resetForm() {
+      this.form = {
+        id: null,
+        enquete_id: "",
+        type_repondant: "",
+        personne_id: "",
+        donnees_reponse: "",
+      };
+    },
+  },
+  mounted() {
+    this.fetchReponses();
+    this.fetchEnquetes();
+  },
 };
-
-/* ===== Récupérer les enquêtes ===== */
-onMounted(async () => {
-  try {
-    const { data } = await axios.get('/enquetes');
-    enquetes.value = data;
-  } catch (error) {
-    console.error(error);
-  }
-});
 </script>
 
 <style scoped>
-.form-container {
-  max-width: 650px;
-  margin: 2rem auto;
+.page-wrapper {
+  max-width: 1000px;
+  margin: auto;
   padding: 2rem;
-  border-radius: 1rem;
-  background: linear-gradient(135deg, #6a11cb 0%, #2575fc 100%);
-  color: #fff;
-  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.15);
 }
 
-.form-container h2 {
-  margin-bottom: 1.5rem;
-  text-align: center;
-  font-size: 1.6rem;
-}
-
-.form-group {
+.top-actions {
   display: flex;
-  flex-direction: column;
-  margin-bottom: 1.25rem;
-}
-
-.form-group label {
-  margin-bottom: 0.5rem;
-  font-weight: 600;
-}
-
-.form-group input,
-.form-group textarea,
-.form-group select {
-  padding: 0.75rem 1rem;
-  border: none;
-  border-radius: 0.5rem;
-  font-size: 1rem;
-  color: #333;
-}
-
-.form-group input:focus,
-.form-group textarea:focus,
-.form-group select:focus {
-  outline: 2px solid #fff;
-}
-
-.json-error {
-  margin-top: -0.75rem;
-  margin-bottom: 0.75rem;
-  font-size: 0.9rem;
-  color: #ffbebe;
+  justify-content: space-between;
+  align-items: center;
 }
 
 .btn-primary {
-  width: 100%;
-  padding: 0.75rem;
+  background: linear-gradient(to right, #7b2ff7, #6454f0);
+  color: white;
+  padding: 0.5rem 1rem;
   border: none;
-  border-radius: 0.5rem;
-  font-size: 1rem;
-  font-weight: 700;
-  cursor: pointer;
-  background: #fff;
-  color: #2575fc;
-  transition: background 0.2s ease-in-out;
+  border-radius: 6px;
 }
 
-.btn-primary:hover {
-  background: #e5e5e5;
+.search-container {
+  position: relative;
+  margin: 1rem 0;
+}
+
+.search-bar {
+  padding: 0.5rem 2rem 0.5rem 2.5rem;
+  width: 100%;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+}
+
+.search-icon {
+  position: absolute;
+  top: 50%;
+  left: 8px;
+  transform: translateY(-50%);
+  color: #888;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th,
+.data-table td {
+  border: 1px solid #ccc;
+  padding: 0.5rem;
+  text-align: left;
+}
+
+.actions button {
+  background: none;
+  border: none;
+  margin-right: 0.3rem;
+  cursor: pointer;
+  color: #333;
+}
+
+.modal {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0, 0, 0, 0.5);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.modal-content {
+  background: white;
+  padding: 2rem;
+  width: 500px;
+  border-radius: 8px;
+}
+
+.form-group {
+  margin-bottom: 1rem;
+}
+
+.modal-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 1rem;
+}
+
+.btn-cancel {
+  background: #ccc;
+  color: black;
+  border: none;
+  padding: 0.5rem 1rem;
+  border-radius: 6px;
 }
 </style>
