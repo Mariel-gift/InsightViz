@@ -38,6 +38,11 @@ class User(db.Model):
     created_at     = db.Column(db.DateTime, default=datetime.utcnow)
     updated_at     = db.Column(db.DateTime, default=datetime.utcnow, onupdate=datetime.utcnow)
 
+    @property
+    def password(self):
+        raise AttributeError("Mot de passe non lisible")
+
+    
     @hybrid_property
     def password(self):
         raise AttributeError("Le mot de passe n'est pas accessible.")

@@ -22,47 +22,48 @@ def index():
 @main.route('/register', methods=['POST'])
 def register():
     data = request.get_json()
-    full_name = data.get('full_name')
-    email = data.get('email')
-    password = data.get('password')
-    role = data.get('role')
 
-    # Valider les champs
-    if not full_name or not email or not password or role not in RoleEnum._value2member_map_:
-        return jsonify({'error': 'Champs invalides'}), 400
+    # Vérification de la présence des champs requis
+    required_fields = ['full_name', 'email', 'password', 'role']
+    if not all(field in data and data[field] for field in required_fields):
+        return jsonify({'error': 'Champs manquants ou invalides'}), 400
 
-    # Créer l'utilisateur
-    new_user = User(
-        full_name=full_name,
-        email=email,
-        role=RoleEnum(role)
-    )
-    new_user.password = password  # hash automatique
+    # Vérification du rôle
+    role = data['role']
+    if role not in RoleEnum._value2member_map_:
+        return jsonify({'error': 'Rôle invalide'}), 400
 
-    try:
-        db.session.add(new_user)
-        db.session.commit()
-    except IntegrityError:
-        db.session.rollback()
+    # Vérifier si l'email existe déjà
+    if User.query.filter_by(email=data['email']).first():
         return jsonify({'error': 'Email déjà utilisé'}), 409
 
-    # Redirection selon rôle
-    if role == 'admin' or role == 'superadmin':
-        redirect = '/admin'
-    else:
-        redirect = '/dashboard'
+    try:
+        new_user = User(
+            full_name=data['full_name'],
+            email=data['email'],
+            role=RoleEnum(role)
+        )
+        new_user.password = data['password']  # hash automatique via setter
+        db.session.add(new_user)
+        db.session.commit()
 
-    return jsonify({'message': 'Utilisateur créé avec succès', 'redirect': redirect}), 201
+        # Redirection selon le rôle
+        redirect = '/admin' if role in [RoleEnum.ADMIN.value, RoleEnum.SUPERADMIN.value] else '/dashboard'
 
+        return jsonify({'message': 'Utilisateur créé avec succès', 'redirect': redirect}), 201
+
+    except IntegrityError:
+        db.session.rollback()
+        return jsonify({'error': 'Erreur lors de la création de l\'utilisateur'}), 500
 @main.route("/login", methods=["POST", "OPTIONS"])
 def login():
     if request.method == "OPTIONS":
         return "", 200
 
     start = time.time()
-
     data = request.get_json()
-    email    = data.get("email")
+
+    email = data.get("email")
     password = data.get("password")
 
     if not email or not password:
@@ -84,7 +85,6 @@ def login():
         },
         "redirect": "/admin" if user.role == RoleEnum.ADMIN else "/dashboard"
     }), 200
-
 
 # ----------- CRUD utilisateurs simplifiés avec pagination ----------------
 @main.route('/api/users', methods=['GET'])

@@ -126,7 +126,7 @@ onMounted(fetchStats)
 }
 .sidebar-btn:hover{opacity:.9}
 .dropdown label{display:block;margin-bottom:.35rem;font-size:.95rem}
-.dropdown select{width:100%;padding:.55rem;border-radius:6px;border:none;background:rgba(255,255,255,.15);color:#fff}
+.dropdown select{width:100%;padding:.55rem;border-radius:6px;border:none;background:rgba(255,255,255,.15);color:#370592}
 
 /* ===== Contenu ===== */
 .content{

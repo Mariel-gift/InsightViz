@@ -37,7 +37,7 @@
             <select v-model="registerForm.role" required>
               <option value="">— Choisir —</option>
               <option value="admin">Admin</option>
-              <option value="client">Utilisateur</option>
+              <option value="user">Utilisateur</option>
             </select>
           </div>
           <div class="form-row">
@@ -212,7 +212,7 @@
 <script setup>
 import { ref, reactive } from 'vue'
 import { useRouter } from 'vue-router'
-import api from '../axios'
+import axios from '../axios'
 
 /* --- Router & état --- */
 const router = useRouter()
@@ -252,13 +252,13 @@ const submitRegister = async () => {
   if (isLoading.value) return
   isLoading.value = true
   try {
-    const response = await axios.post('http://localhost:5000/register', {
-      full_name: registerForm.full_name,
-      email: registerForm.email,
-      password: registerForm.password,
-      role: registerForm.role,
-      agree_to_terms: true
-    })
+const response = await axios.post('/register', {
+  full_name: registerForm.value.full_name,
+  email: registerForm.value.email,
+  password: registerForm.value.password,
+  role: registerForm.value.role,
+})
+
 
     alert(response.data.message)
     if (response.data.redirect === '/admin') {
@@ -279,7 +279,11 @@ const submitLogin = async () => {
   if (isLoading.value) return
   isLoading.value = true
   try {
-    const res = await api.post('/login', loginForm.value)
+   const res = await axios.post('/login', {
+  email: loginForm.value.email,
+  password: loginForm.value.password
+})
+
     const user = res.data.user
 
     if (!user || !user.role) throw new Error('Utilisateur non valide.')
