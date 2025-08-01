@@ -1,579 +1,899 @@
 <template>
-  <div class="page-wrapper">
-    <!-- Bouton créer enquête -->
-    <div class="top-actions">
-      <button class="btn-primary" @click="openFormModal">
+  <div class="surveys">
+    <div class="page-header">
+      <h2>Gestion des Enquêtes</h2>
+      <button @click="showCreateForm = true" class="primary-btn">
+        <svg class="btn-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+        </svg>
         Créer une enquête
       </button>
     </div>
 
-    <!-- Barre de recherche -->
-    <div class="search-container" style="margin: 1rem 0;">
-      <div class="input-icon">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <circle cx="11" cy="11" r="8"></circle>
-          <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
-        </svg>
+    <!-- Formulaire de création/modification -->
+    <div v-if="showCreateForm" class="form-modal">
+      <div class="form-container">
+        <div class="form-header">
+          <h3>{{ editingSurvey ? 'Modifier l\'enquête' : 'Nouvelle Enquête' }}</h3>
+          <button @click="closeForm" class="close-btn">&times;</button>
+        </div>
+        
+        <form @submit.prevent="saveSurvey" class="survey-form">
+          <div class="form-section">
+            <h4>Informations générales</h4>
+            <div class="form-grid">
+              <div class="form-group">
+                <label for="titre">Titre de l'enquête *</label>
+                <input 
+                  id="titre" 
+                  v-model="surveyForm.titre" 
+                  type="text" 
+                  required 
+                  class="form-input"
+                  placeholder="Entrez le titre de l'enquête"
+                />
+              </div>
+              
+              <div class="form-group">
+                <label for="campagne">Campagne liée</label>
+                <select id="campagne" v-model="surveyForm.campagne" class="form-select">
+                  <option value="">Sélectionner une campagne</option>
+                  <option value="campagne-1">Satisfaction Client 2024</option>
+                  <option value="campagne-2">Étude de marché</option>
+                  <option value="campagne-3">Feedback Produit</option>
+                </select>
+              </div>
+              
+              <div class="form-group form-group-full">
+                <label for="description">Description</label>
+                <textarea 
+                  id="description" 
+                  v-model="surveyForm.description" 
+                  class="form-textarea"
+                  rows="3"
+                  placeholder="Description de l'enquête..."
+                ></textarea>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-section">
+            <div class="section-header">
+              <h4>Questions</h4>
+              <button type="button" @click="addQuestion" class="add-question-btn">
+                <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                </svg>
+                Ajouter une question
+              </button>
+            </div>
+            
+            <div v-if="surveyForm.questions.length === 0" class="no-questions">
+              <p>Aucune question ajoutée. Cliquez sur "Ajouter une question" pour commencer.</p>
+            </div>
+            
+            <div v-for="(question, qIndex) in surveyForm.questions" :key="qIndex" class="question-item">
+              <div class="question-header">
+                <span class="question-number">Question {{ qIndex + 1 }}</span>
+                <button type="button" @click="removeQuestion(qIndex)" class="remove-question-btn">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                  </svg>
+                </button>
+              </div>
+              
+              <div class="question-content">
+                <div class="form-group">
+                  <label>Texte de la question *</label>
+                  <input 
+                    v-model="question.texte" 
+                    type="text" 
+                    required 
+                    class="form-input"
+                    placeholder="Entrez votre question..."
+                  />
+                </div>
+                
+                <div class="form-group">
+                  <label>Type de réponse</label>
+                  <select v-model="question.type" class="form-select" @change="updateQuestionType(qIndex)">
+                    <option value="text">Texte libre</option>
+                    <option value="radio">Choix unique</option>
+                    <option value="checkbox">Choix multiple</option>
+                    <option value="rating">Évaluation (1-5)</option>
+                    <option value="yesno">Oui/Non</option>
+                  </select>
+                </div>
+                
+                <div v-if="question.type === 'radio' || question.type === 'checkbox'" class="options-section">
+                  <label>Options de réponse</label>
+                  <div v-for="(option, oIndex) in question.options" :key="oIndex" class="option-item">
+                    <input 
+                      v-model="question.options[oIndex]" 
+                      type="text" 
+                      class="form-input"
+                      placeholder="Option de réponse..."
+                    />
+                    <button type="button" @click="removeOption(qIndex, oIndex)" class="remove-option-btn">
+                      <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                      </svg>
+                    </button>
+                  </div>
+                  <button type="button" @click="addOption(qIndex)" class="add-option-btn">
+                    Ajouter une option
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="form-actions">
+            <button type="button" @click="closeForm" class="secondary-btn">Annuler</button>
+            <button type="submit" class="primary-btn">
+              {{ editingSurvey ? 'Modifier' : 'Créer' }} l'enquête
+            </button>
+          </div>
+        </form>
       </div>
-      <input
-        type="text"
-        v-model="searchQuery"
-        placeholder="Rechercher une enquête..."
-        class="search-bar"
-      />
     </div>
 
-    <!-- Tableau enquêtes -->
-    <div class="table-wrapper">
-      <h2>Liste des enquêtes</h2>
-      <table v-if="filteredEnquetes.length" class="enquetes-table">
+    <!-- Barre de recherche -->
+    <div class="search-filters">
+      <div class="search-bar">
+        <svg class="search-icon" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+        </svg>
+        <input 
+          v-model="searchQuery" 
+          type="text" 
+          placeholder="Rechercher des enquêtes..."
+          class="search-input"
+        />
+      </div>
+    </div>
+
+    <!-- Tableau des enquêtes -->
+    <div class="table-container">
+      <table class="surveys-table">
         <thead>
           <tr>
-            <th>#</th>
             <th>Titre</th>
-            <th>Créée le</th>
+            <th>Campagne</th>
+            <th>Questions</th>
+            <th>Réponses</th>
             <th>Statut</th>
+            <th>Date de création</th>
             <th>Actions</th>
           </tr>
         </thead>
         <tbody>
-          <tr v-for="e in filteredEnquetes" :key="e.id">
-            <td>{{ e.id }}</td>
-            <td>{{ e.titre }}</td>
-            <td>{{ formatDate(e.date_creation) }}</td>
+          <tr v-for="survey in filteredSurveys" :key="survey.id" class="table-row">
             <td>
-              <span :class="['badge', e.answered ? 'answered' : 'pending']">
-                {{ e.answered ? 'Répondu' : 'En attente' }}
+              <div class="survey-title">
+                <h4>{{ survey.titre }}</h4>
+                <p v-if="survey.description">{{ survey.description }}</p>
+              </div>
+            </td>
+            <td>
+              <span v-if="survey.campagne" class="campaign-badge">
+                {{ getCampaignName(survey.campagne) }}
+              </span>
+              <span v-else class="no-campaign">Aucune</span>
+            </td>
+            <td>{{ survey.questions.length }}</td>
+            <td>{{ survey.reponses }}</td>
+            <td>
+              <span class="status-badge" :class="survey.statut.toLowerCase()">
+                {{ survey.statut }}
               </span>
             </td>
-            <td class="action-icons">
-  <button class="icon-btn" title="Voir questions" @click="viewQuestions(e.id)">
-    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12H9m12 0a9 9 0 11-18 0 9 9 0 0118 0z" />
-    </svg>
-  </button>
-  <button class="icon-btn" title="Modifier" @click="loadEnquete(e.id)">
-    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 4h2m3.707 1.293l3 3a1 1 0 01.293.707V20a1 1 0 01-1 1H5a1 1 0 01-1-1V4a1 1 0 011-1h6a1 1 0 01.707.293l4 4z" />
-    </svg>
-  </button>
-  <button class="icon-btn" title="Supprimer" @click="deleteEnquete(e.id)">
-    <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
-    </svg>
-  </button>
-</td>
-
+            <td>{{ survey.dateCreation }}</td>
+            <td>
+              <div class="action-buttons">
+                <button @click="viewSurvey(survey)" class="action-btn view" title="Voir">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                  </svg>
+                </button>
+                <button @click="editSurvey(survey)" class="action-btn edit" title="Modifier">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                  </svg>
+                </button>
+                <button @click="deleteSurvey(survey.id)" class="action-btn delete" title="Supprimer">
+                  <svg fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                  </svg>
+                </button>
+              </div>
+            </td>
           </tr>
         </tbody>
       </table>
-      <p v-else class="empty">Aucune enquête enregistrée.</p>
-    </div>
-
-    <!-- MODALE FORMULAIRE CREATION / MODIF ENQUETE -->
-    <div v-if="showFormModal" class="modal-overlay" @click.self="closeFormModal">
-      <div class="modal large-modal">
-        <h2>{{ editEnqId ? "Modifier une enquête" : "Créer une enquête" }}</h2>
-
-        <form @submit.prevent="submitForm">
-          <!-- Titre -->
-          <div class="form-group">
-            <label for="titre">Titre *</label>
-            <input id="titre" v-model="form.titre" type="text" required />
-          </div>
-
-          <!-- Campagne -->
-          <div class="form-group">
-            <label for="campagne">Campagne liée</label>
-            <select id="campagne" v-model="form.campagne_id">
-              <option disabled value="">-- Sélectionnez une campagne --</option>
-              <option v-for="c in campagnes" :key="c.id" :value="c.id">{{ c.nom }}</option>
-            </select>
-          </div>
-
-          <!-- Questions -->
-          <div class="questions-header">
-            <span>Questions</span>
-            <button type="button" class="btn-secondary" @click="openAddModal">Ajouter une question</button>
-          </div>
-
-          <ul class="questions-list" v-if="questions.length">
-            <li v-for="(q, i) in questions" :key="i">
-              <span class="q-text">{{ q }}</span>
-              <div class="q-actions">
-                <button type="button" class="action-btn" @click="openEditModal(i)">Modifier</button>
-                <button type="button" class="action-btn" @click="deleteQuestion(i)">Supprimer</button>
-              </div>
-            </li>
-          </ul>
-          <p v-else class="empty">Aucune question pour l’instant.</p>
-
-          <button class="btn-primary" type="submit">{{ editEnqId ? 'Mettre à jour' : 'Créer' }}</button>
-        </form>
-
-        <!-- Bouton fermer modal -->
-        <button class="btn-cancel close-btn" @click="closeFormModal">Fermer</button>
-      </div>
-    </div>
-
-    <!-- Modale ajout/modif question (petite modal dans modal formulaire) -->
-    <div v-if="showQuestionModal" class="modal-overlay" @click.self="closeQuestionModal">
-      <div class="modal">
-        <h3>{{ modalTitle }}</h3>
-        <input v-model="newQuestion" type="text" placeholder="Saisis la question ici…" autofocus />
-        <div class="modal-actions">
-          <button class="btn-cancel" @click="closeQuestionModal">Annuler</button>
-          <button class="btn-primary" @click="saveQuestion">Valider</button>
-        </div>
-      </div>
-    </div>
-
-    <!-- Modale voir questions -->
-
-
-    <div v-if="showViewModal" class="modal-overlay" @click.self="closeViewModal">
-      <div class="modal">
-        <h3>Questions de l’enquête #{{ selectedEnqueteId }}</h3>
-        <ul v-if="selectedQuestions.length">
-          <li v-for="q in selectedQuestions" :key="q.id">
-            {{ q.ordre }}. {{ q.texte }}
-          </li>
-        </ul>
-        <p v-else>Aucune question trouvée pour cette enquête.</p>
-        <div class="modal-actions">
-          <button class="btn-cancel" @click="closeViewModal">Fermer</button>
-        </div>
-      </div>
     </div>
   </div>
 </template>
 
-<script setup>
-import { ref, reactive, computed, onMounted } from "vue";
-import axios from "../axios";
+<script setup lang="ts">
+import { ref, computed } from 'vue'
 
-const campagnes = ref([]);
-const enquetes = ref([]);
-const questions = ref([]);
-
-const showFormModal = ref(false);
-const showQuestionModal = ref(false);
-const showViewModal = ref(false);
-
-const newQuestion = ref("");
-const editIndex = ref(null);
-const selectedQuestions = ref([]);
-const selectedEnqueteId = ref(null);
-const editEnqId = ref(null);
-
-const form = reactive({
-  titre: "",
-  campagne_id: null,
-});
-
-const searchQuery = ref("");
-
-function openFormModal() {
-  resetForm();
-  showFormModal.value = true;
+interface Question {
+  texte: string
+  type: string
+  options: string[]
 }
 
-function closeFormModal() {
-  showFormModal.value = false;
-  resetForm();
+interface Survey {
+  id: number
+  titre: string
+  description: string
+  campagne: string
+  questions: Question[]
+  reponses: number
+  statut: string
+  dateCreation: string
 }
 
-function openAddModal() {
-  editIndex.value = null;
-  newQuestion.value = "";
-  showQuestionModal.value = true;
-}
+const showCreateForm = ref(false)
+const editingSurvey = ref<Survey | null>(null)
+const searchQuery = ref('')
 
-function openEditModal(i) {
-  editIndex.value = i;
-  newQuestion.value = questions.value[i].replace(/^Q\d+:\s*/, "");
-  showQuestionModal.value = true;
-}
+const surveyForm = ref({
+  titre: '',
+  description: '',
+  campagne: '',
+  questions: [] as Question[]
+})
 
-function closeQuestionModal() {
-  showQuestionModal.value = false;
-  newQuestion.value = "";
-}
-
-function saveQuestion() {
-  const txt = newQuestion.value.trim();
-  if (!txt) {
-    alert("Veuillez saisir une question.");
-    return;
+const surveys = ref<Survey[]>([
+  {
+    id: 1,
+    titre: 'Satisfaction Client 2024',
+    description: 'Enquête annuelle de satisfaction des clients',
+    campagne: 'campagne-1',
+    questions: [
+      { texte: 'Comment évaluez-vous notre service ?', type: 'rating', options: [] },
+      { texte: 'Recommanderiez-vous nos services ?', type: 'yesno', options: [] }
+    ],
+    reponses: 245,
+    statut: 'Actif',
+    dateCreation: '15/03/2024'
+  },
+  {
+    id: 2,
+    titre: 'Feedback Produit',
+    description: 'Retours sur notre nouveau produit',
+    campagne: 'campagne-3',
+    questions: [
+      { texte: 'Que pensez-vous du design ?', type: 'radio', options: ['Excellent', 'Bon', 'Moyen', 'Mauvais'] },
+      { texte: 'Quelles fonctionnalités utilisez-vous le plus ?', type: 'checkbox', options: ['Feature A', 'Feature B', 'Feature C'] }
+    ],
+    reponses: 89,
+    statut: 'Actif',
+    dateCreation: '20/03/2024'
+  },
+  {
+    id: 3,
+    titre: 'Étude de marché',
+    description: 'Analyse des besoins du marché',
+    campagne: 'campagne-2',
+    questions: [
+      { texte: 'Dans quel secteur travaillez-vous ?', type: 'text', options: [] }
+    ],
+    reponses: 12,
+    statut: 'Brouillon',
+    dateCreation: '25/03/2024'
   }
-  if (editIndex.value === null) {
-    questions.value.push(`Q${questions.value.length + 1}: ${txt}`);
-  } else {
-    questions.value[editIndex.value] = `Q${editIndex.value + 1}: ${txt}`;
+])
+
+const filteredSurveys = computed(() => {
+  return surveys.value.filter(survey => 
+    !searchQuery.value || 
+    survey.titre.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+    survey.description.toLowerCase().includes(searchQuery.value.toLowerCase())
+  )
+})
+
+const getCampaignName = (campaignId: string) => {
+  const campaigns: Record<string, string> = {
+    'campagne-1': 'Satisfaction Client 2024',
+    'campagne-2': 'Étude de marché',
+    'campagne-3': 'Feedback Produit'
   }
-  closeQuestionModal();
+  return campaigns[campaignId] || campaignId
 }
 
-function deleteQuestion(i) {
-  questions.value.splice(i, 1);
-  questions.value = questions.value.map((q, idx) =>
-    q.replace(/^Q\d+:/, `Q${idx + 1}:`)
-  );
+const closeForm = () => {
+  showCreateForm.value = false
+  editingSurvey.value = null
+  surveyForm.value = {
+    titre: '',
+    description: '',
+    campagne: '',
+    questions: []
+  }
 }
-const submitForm = async () => {
-  console.log("submitForm appelé");
-  console.log("editEnqId.value =", editEnqId.value);
-  console.log("form.titre =", form.titre);
-  console.log("form.campagne_id =", form.campagne_id);
-  console.log("questions =", questions.value);
 
-  if (!form.titre.trim()) {
-    alert("Le titre est obligatoire.");
-    return;
-  }
-  if (!form.campagne_id) {
-    alert("La campagne liée est obligatoire.");
-    return;
-  }
-  if (questions.value.length === 0) {
-    alert("Veuillez ajouter au moins une question.");
-    return;
-  }
+const addQuestion = () => {
+  surveyForm.value.questions.push({
+    texte: '',
+    type: 'text',
+    options: []
+  })
+}
 
-  const payload = {
-    titre: form.titre.trim(),
-    campagne_id: form.campagne_id,
-    questions: questions.value.map((q, index) => {
-      const texte = q.replace(/^Q\d+:\s*/, "");
-      return {
-        ordre: index + 1,
-        texte: texte,
-      };
-    }),
-  };
+const removeQuestion = (index: number) => {
+  surveyForm.value.questions.splice(index, 1)
+}
 
-  try {
-    if (editEnqId.value) {
-      console.log("Envoi PUT pour mise à jour enquête ID:", editEnqId.value);
-      await axios.put(`/enquetes/${editEnqId.value}`, payload);
-      alert("Enquête mise à jour ✅");
-    } else {
-      console.log("Envoi POST pour création nouvelle enquête");
-      const { data } = await axios.post(`/enquetes`, payload);
-      alert("Enquête créée ✅");
-      selectedEnqueteId.value = data.id;
+const updateQuestionType = (qIndex: number) => {
+  const question = surveyForm.value.questions[qIndex]
+  if (question.type === 'radio' || question.type === 'checkbox') {
+    if (question.options.length === 0) {
+      question.options = ['Option 1', 'Option 2']
     }
-
-    await fetchEnquetes();
-    closeFormModal();
-  } catch (error) {
-    console.error("Erreur lors de la création/mise à jour de l'enquête", error);
-    alert("Erreur lors de la sauvegarde. Voir console.");
-  }
-};
-async function deleteEnquete(id) {
-  const confirmed = confirm("Voulez-vous vraiment supprimer cette enquête ?");
-  if (!confirmed) return;
-
-  try {
-    await axios.delete(`/enquetes/${id}`);
-    alert("Enquête supprimée.");
-    await fetchEnquetes();
-  } catch (e) {
-    console.error("Erreur lors de la suppression:", e);
-    alert("Erreur lors de la suppression.");
+  } else {
+    question.options = []
   }
 }
 
-
-
-function resetForm() {
-  form.titre = "";
-  form.campagne_id = null;
-  questions.value = [];
-  editEnqId.value = null;
-  searchQuery.value = "";
+const addOption = (qIndex: number) => {
+  const question = surveyForm.value.questions[qIndex]
+  question.options.push(`Option ${question.options.length + 1}`)
 }
 
-async function fetchEnquetes() {
-  try {
-    const { data } = await axios.get("/enquetes");
-    enquetes.value = data;
-  } catch (error) {
-    console.error(error);
+const removeOption = (qIndex: number, oIndex: number) => {
+  surveyForm.value.questions[qIndex].options.splice(oIndex, 1)
+}
+
+const saveSurvey = () => {
+  if (editingSurvey.value) {
+    // Modifier l'enquête existante
+    const index = surveys.value.findIndex(s => s.id === editingSurvey.value!.id)
+    if (index !== -1) {
+      surveys.value[index] = {
+        ...surveys.value[index],
+        ...surveyForm.value
+      }
+    }
+  } else {
+    // Ajouter une nouvelle enquête
+    const newSurvey: Survey = {
+      id: Date.now(),
+      ...surveyForm.value,
+      reponses: 0,
+      statut: 'Brouillon',
+      dateCreation: new Date().toLocaleDateString('fr-FR')
+    }
+    surveys.value.push(newSurvey)
   }
+  
+  closeForm()
 }
 
-const filteredEnquetes = computed(() => {
-  if (!searchQuery.value) return enquetes.value;
-  return enquetes.value.filter((e) =>
-    e.titre.toLowerCase().includes(searchQuery.value.toLowerCase())
-  );
-});
+const viewSurvey = (survey: Survey) => {
+  alert(`Affichage de l'enquête: ${survey.titre}`)
+}
 
-onMounted(async () => {
-  try {
-    const [c, e] = await Promise.all([axios.get("/campagnes"), axios.get("/enquetes")]);
-    campagnes.value = c.data;
-    enquetes.value = e.data;
-  } catch (e) {
-    console.error(e);
+const editSurvey = (survey: Survey) => {
+  editingSurvey.value = survey
+  surveyForm.value = {
+    titre: survey.titre,
+    description: survey.description,
+    campagne: survey.campagne,
+    questions: JSON.parse(JSON.stringify(survey.questions))
   }
-});
+  showCreateForm.value = true
+}
 
-async function viewQuestions(enqueteId) {
-  try {
-    const { data } = await axios.get(`/enquetes/${enqueteId}/questions`);
-    selectedQuestions.value = data;
-    selectedEnqueteId.value = enqueteId;
-    showViewModal.value = true;
-  } catch (error) {
-    console.error("Erreur lors du chargement des questions:", error);
-    alert("Impossible de charger les questions.");
+const deleteSurvey = (surveyId: number) => {
+  if (confirm('Êtes-vous sûr de vouloir supprimer cette enquête ?')) {
+    surveys.value = surveys.value.filter(s => s.id !== surveyId)
   }
-}
-
-function closeViewModal() {
-  showViewModal.value = false;
-  selectedQuestions.value = [];
-  selectedEnqueteId.value = null;
-}
-
-const modalTitle = computed(() =>
-  editIndex.value === null ? "Nouvelle question" : "Modifier la question"
-);
-
-async function loadEnquete(id) {
-  try {
-    const [{ data: eq }, { data: qs }] = await Promise.all([
-      axios.get(`/enquetes/${id}`),
-      axios.get(`/enquetes/${id}/questions`),
-    ]);
-    form.titre = eq.titre;
-    form.campagne_id = eq.campagne_id;
-    questions.value = qs.map((q) => `Q${q.ordre}: ${q.texte}`);
-    editEnqId.value = id;
-    showFormModal.value = true; // Ouvrir la modale avec données chargées
-  } catch (e) {
-    console.error(e);
-    alert("Impossible de charger l’enquête.");
-  }
-}
-
-function formatDate(iso) {
-  return new Date(iso).toLocaleDateString();
 }
 </script>
 
 <style scoped>
-.page-wrapper {
-  padding: 2rem;
+.surveys {
   max-width: 1200px;
-  margin: 80px auto 2rem;
-  color: #2c3e50;
-  font-family: "Segoe UI", Tahoma, Geneva, Verdana, sans-serif;
 }
-.top-actions {
+
+.page-header {
   display: flex;
-  justify-content: flex-start;
-  margin-bottom: 1rem;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 2rem;
 }
-.btn-primary {
-  background: hsl(269, 85%, 43%);
-  color: white;
-  padding: 0.6rem 1.5rem;
-  border: none;
-  border-radius: 25px;
+
+.page-header h2 {
+  font-size: 2rem;
   font-weight: 700;
-  cursor: pointer;
+  color: #1f2937;
+  margin: 0;
 }
-.btn-primary:hover {
-  background: #530fa8;
-}
-.btn-secondary {
-  background: hsl(269, 85%, 43%);
-  color: rgb(240, 240, 245);
-  padding: 0.5rem 1rem;
-  border-radius: 0.5rem;
-  border: none;
-  cursor: pointer;
-}
-.btn-secondary:hover {
-  background: #530fa8;
-}
-.btn-cancel {
-  background: #e74c3c;
+
+.primary-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.75rem 1.5rem;
+  background-color: #3b82f6;
   color: white;
-  padding: 0.6rem 1.5rem;
   border: none;
-  border-radius: 25px;
+  border-radius: 8px;
+  font-weight: 500;
   cursor: pointer;
-  font-weight: 700;
+  transition: background-color 0.2s;
 }
-.btn-cancel:hover {
-  background: #c0392b;
+
+.primary-btn:hover {
+  background-color: #2563eb;
 }
-.close-btn {
-  margin-top: 1rem;
-  width: 100%;
+
+.btn-icon {
+  width: 18px;
+  height: 18px;
 }
-/* Tableau */
-.table-wrapper h2 {
-  margin-top: 2rem;
-  margin-bottom: 1rem;
-}
-.enquetes-table {
-  width: 100%;
-  border-collapse: collapse;
-  box-shadow: 0 0 12px rgb(106 17 203 / 0.15);
-  border-radius: 12px;
-  overflow: hidden;
-}
-.enquetes-table th,
-.enquetes-table td {
-  text-align: left;
-  padding: 0.75rem 1rem;
-  border-bottom: 1px solid #eee;
-  font-size: 0.95rem;
-}
-.enquetes-table th {
-  background: #6a11cb;
-  color: white;
-  font-weight: 600;
-}
-.enquetes-table tr:hover {
-  background: #f5f0ff;
-}
-.badge {
-  padding: 0.25rem 0.6rem;
-  border-radius: 0.5rem;
-  font-size: 0.8rem;
-  font-weight: 600;
-  color: #fff;
-}
-.badge.answered {
-  background: #2ecc71;
-}
-.badge.pending {
-  background: #f1c40f;
-}
-/* Modal */
-.modal-overlay {
+
+.form-modal {
   position: fixed;
-  inset: 0;
-  background: rgba(57, 42, 106, 0.85);
-  backdrop-filter: blur(8px);
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  background-color: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 3000;
+  z-index: 50;
+  padding: 1rem;
 }
-.modal {
+
+.form-container {
   background: white;
-  padding: 2rem;
   border-radius: 12px;
   width: 100%;
-  max-width: 480px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
-  color: #2c3e50;
+  max-width: 800px;
+  max-height: 90vh;
+  overflow-y: auto;
 }
-.large-modal {
-  max-width: 700px;
-}
-.modal h2,
-.modal h3 {
-  margin-bottom: 1rem;
-  font-weight: 700;
-  text-align: center;
-}
-.modal input,
-.modal select {
-  width: 100%;
-  padding: 0.75rem 1rem;
-  border: 1px solid #ccc;
-  border-radius: 0.5rem;
-  margin-bottom: 1.25rem;
-  font-size: 1rem;
-}
-.questions-header {
+
+.form-header {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  margin: 1rem 0 0.5rem;
+  padding: 1.5rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.form-header h3 {
+  margin: 0;
+  font-size: 1.25rem;
   font-weight: 600;
+  color: #1f2937;
 }
-.questions-list {
-  list-style: none;
-  padding: 0;
-  margin-bottom: 1.5rem;
+
+.close-btn {
+  background: none;
+  border: none;
+  font-size: 1.5rem;
+  cursor: pointer;
+  color: #6b7280;
+  padding: 0.25rem;
+  border-radius: 4px;
 }
-.questions-list li {
-  background: rgba(106, 17, 203, 0.15);
-  padding: 0.75rem 1rem;
-  border-radius: 0.5rem;
+
+.close-btn:hover {
+  background-color: #f3f4f6;
+}
+
+.survey-form {
+  padding: 1.5rem;
+}
+
+.form-section {
+  margin-bottom: 2rem;
+  padding-bottom: 2rem;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.form-section:last-of-type {
+  border-bottom: none;
+  margin-bottom: 0;
+  padding-bottom: 0;
+}
+
+.form-section h4 {
+  margin: 0 0 1rem 0;
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.section-header {
   display: flex;
   justify-content: space-between;
-  margin-bottom: 0.75rem;
+  align-items: center;
+  margin-bottom: 1rem;
 }
-.q-actions {
+
+.add-question-btn {
   display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.5rem 1rem;
+  background-color: #10b981;
+  color: white;
+  border: none;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.add-question-btn:hover {
+  background-color: #059669;
+}
+
+.add-question-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+  gap: 1rem;
+}
+
+.form-group-full {
+  grid-column: 1 / -1;
+}
+
+.form-group {
+  display: flex;
+  flex-direction: column;
   gap: 0.5rem;
 }
-.action-btn {
-  background: rgba(255, 255, 255, 0.3);
-  color: #6a11cb;
-  border: none;
-  border-radius: 0.3rem;
-  padding: 0.25rem 0.6rem;
-  font-size: 0.9rem;
-  cursor: pointer;
+
+.form-group label {
+  font-weight: 500;
+  color: #374151;
 }
-.action-btn:hover {
-  background: rgba(255, 255, 255, 0.6);
+
+.form-input, .form-select, .form-textarea {
+  padding: 0.75rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
+  font-size: 1rem;
+  transition: border-color 0.2s;
 }
-.empty {
-  color: #555;
-  font-style: italic;
-  margin-top: 1rem;
+
+.form-input:focus, .form-select:focus, .form-textarea:focus {
+  outline: none;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+}
+
+.form-textarea {
+  resize: vertical;
+  min-height: 80px;
+}
+
+.no-questions {
   text-align: center;
+  padding: 2rem;
+  color: #6b7280;
+  background-color: #f9fafb;
+  border-radius: 8px;
+  border: 2px dashed #d1d5db;
 }
-/* Recherche */
-.search-container {
+
+.question-item {
+  background-color: #f9fafb;
+  padding: 1.5rem;
+  border-radius: 8px;
+  border: 1px solid #e5e7eb;
+  margin-bottom: 1rem;
+}
+
+.question-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1rem;
+}
+
+.question-number {
+  font-weight: 600;
+  color: #3b82f6;
+}
+
+.remove-question-btn {
+  padding: 0.25rem;
+  background-color: #fee2e2;
+  color: #dc2626;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.remove-question-btn:hover {
+  background-color: #fecaca;
+}
+
+.remove-question-btn svg {
+  width: 16px;
+  height: 16px;
+}
+
+.question-content {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1rem;
+  align-items: start;
+}
+
+.options-section {
+  grid-column: 1 / -1;
+  margin-top: 1rem;
+}
+
+.options-section label {
+  display: block;
+  margin-bottom: 0.5rem;
+  font-weight: 500;
+  color: #374151;
+}
+
+.option-item {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+  align-items: center;
+}
+
+.option-item input {
+  flex: 1;
+}
+
+.remove-option-btn {
+  padding: 0.5rem;
+  background-color: #fee2e2;
+  color: #dc2626;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.remove-option-btn svg {
+  width: 14px;
+  height: 14px;
+}
+
+.add-option-btn {
+  padding: 0.5rem 1rem;
+  background-color: #e0e7ff;
+  color: #4338ca;
+  border: none;
+  border-radius: 4px;
+  font-size: 0.875rem;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.add-option-btn:hover {
+  background-color: #c7d2fe;
+}
+
+.form-actions {
+  display: flex;
+  gap: 1rem;
+  justify-content: flex-end;
+  padding-top: 2rem;
+  border-top: 1px solid #e5e7eb;
+}
+
+.secondary-btn {
+  padding: 0.75rem 1.5rem;
+  background-color: #f3f4f6;
+  color: #374151;
+  border: none;
+  border-radius: 8px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.secondary-btn:hover {
+  background-color: #e5e7eb;
+}
+
+.search-filters {
+  margin-bottom: 2rem;
+}
+
+.search-bar {
   position: relative;
   max-width: 400px;
 }
-.input-icon {
+
+.search-icon {
   position: absolute;
-  left: 12px;
+  left: 1rem;
   top: 50%;
   transform: translateY(-50%);
-  pointer-events: none;
-  color: #6a11cb;
+  width: 20px;
+  height: 20px;
+  color: #6b7280;
 }
-.search-bar {
+
+.search-input {
   width: 100%;
-  padding: 0.5rem 1rem 0.5rem 2.5rem;
-  border: 2px solid #6a11cb;
-  border-radius: 25px;
+  padding: 0.75rem 1rem 0.75rem 3rem;
+  border: 1px solid #d1d5db;
+  border-radius: 8px;
   font-size: 1rem;
-  color: #2c3e50;
+}
+
+.search-input:focus {
   outline: none;
-  transition: border-color 0.3s ease;
+  border-color: #3b82f6;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
 }
-.search-bar:focus {
-  border-color: #2575fc;
+
+.table-container {
+  background: white;
+  border-radius: 12px;
+  overflow: hidden;
+  box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
 }
-.icon-btn {
-  background: transparent;
+
+.surveys-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.surveys-table th {
+  background-color: #f9fafb;
+  padding: 1rem;
+  text-align: left;
+  font-weight: 600;
+  color: #374151;
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.table-row {
+  transition: background-color 0.2s;
+}
+
+.table-row:hover {
+  background-color: #f9fafb;
+}
+
+.surveys-table td {
+  padding: 1rem;
+  border-bottom: 1px solid #e5e7eb;
+  vertical-align: middle;
+}
+
+.survey-title h4 {
+  margin: 0 0 0.25rem 0;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.survey-title p {
+  margin: 0;
+  font-size: 0.875rem;
+  color: #6b7280;
+}
+
+.campaign-badge {
+  padding: 0.25rem 0.75rem;
+  background-color: #dbeafe;
+  color: #3b82f6;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.no-campaign {
+  color: #6b7280;
+  font-style: italic;
+}
+
+.status-badge {
+  padding: 0.25rem 0.75rem;
+  border-radius: 6px;
+  font-size: 0.875rem;
+  font-weight: 500;
+}
+
+.status-badge.actif {
+  background-color: #d1fae5;
+  color: #059669;
+}
+
+.status-badge.brouillon {
+  background-color: #fef3c7;
+  color: #d97706;
+}
+
+.action-buttons {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.action-btn {
+  padding: 0.5rem;
   border: none;
-  margin-right: 0.4rem;
+  border-radius: 6px;
   cursor: pointer;
-  color: #333;
-  transition: color 0.2s ease;
+  transition: background-color 0.2s;
 }
 
-.icon-btn:hover {
-  color: #e74c3c;
+.action-btn svg {
+  width: 16px;
+  height: 16px;
 }
 
+.action-btn.view {
+  background-color: #e0e7ff;
+  color: #4338ca;
+}
+
+.action-btn.view:hover {
+  background-color: #c7d2fe;
+}
+
+.action-btn.edit {
+  background-color: #dbeafe;
+  color: #3b82f6;
+}
+
+.action-btn.edit:hover {
+  background-color: #bfdbfe;
+}
+
+.action-btn.delete {
+  background-color: #fee2e2;
+  color: #dc2626;
+}
+
+.action-btn.delete:hover {
+  background-color: #fecaca;
+}
+
+@media (max-width: 767px) {
+  .page-header {
+    flex-direction: column;
+    gap: 1rem;
+    align-items: stretch;
+  }
+  
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+  
+  .question-content {
+    grid-template-columns: 1fr;
+  }
+  
+  .form-actions {
+    flex-direction: column;
+  }
+  
+  .table-container {
+    overflow-x: auto;
+  }
+  
+  .surveys-table {
+    min-width: 900px;
+  }
+}
 </style>
